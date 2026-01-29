@@ -32,15 +32,27 @@ def root():
 def getWorkout():
         return workoutdict
 
+#Return specific workout by UUID
 @app.get("/workouts/{id}")
 def getWorkout(id: str):
         return workoutdict[id]
 
+#Add a workout to the dictionary
 @app.post("/workouts/")
 def create_workout(workout_in: WorkoutCreate):
         workout = add_uuid(workout_in) # Returns a workout object
         add_workout_to_dict(workout)
         return workout
+
+@app.delete("/workouts/")
+def deleteWorkouts():
+        workoutdict.clear()
+        return "All workout logs have been cleared."
+
+@app.delete("/workouts/{id}")
+def deleteWorkouts(id: str):
+        del workoutdict[id]
+        return workoutdict
         
 
 
