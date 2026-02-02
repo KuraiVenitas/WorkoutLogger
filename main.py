@@ -79,7 +79,7 @@ def update_workout(id:str, workoutUpdate: WorkoutUpdate):
         if id not in workoutdict:
                 raise HTTPException(status_code=404, detail="Workout log not found")
         else:
-                #Converts the pydantic model to a python dict and removes unneccesary fields
+                #Converts the pydantic model to a python dict and disregards fields with no input
                 update_data = workoutUpdate.model_dump(exclude_unset=True) 
                 workoutdict[id] = workoutdict[id].model_copy(update=update_data)
                 return workoutdict[id]
