@@ -1,10 +1,8 @@
-from fastapi import FastAPI
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel #Import BaseModel to check types automatically, Reinforces required vs optional fields
-#from pydantic import Field
 from datetime import date #Import the library for dates. Prevents invalid dates
 from typing import Optional #Allows for some fields to be missing
-import uuid
+import uuid, sqlite3
 
 
 #----------------Variables----------------#
@@ -14,7 +12,6 @@ workoutdict = {} #Holds workout logs
 #----------------Classes----------------#
 #WorkoutCreate Class includes three fields: Date, Calories burned and Workout Length
 class WorkoutCreate(BaseModel):
-        #date: date = Field(default_factory=date.today)
         date: date
         calories_burned: Optional[int] = None
         length_minutes: Optional[int] = None
@@ -32,46 +29,92 @@ class WorkoutUpdate(BaseModel):
         calories_burned: Optional[int] = None
         length_minutes: Optional[int] = None
 
+#---------------------------Database-------------------------#
+conn = sqlite3.connect('workouts.db') # Creates workouts database
+cursor = conn.cursor()
+create_table = """
+        CREATE TABLE IF NOT EXISTS logs (
+        id VARCHAR(36) PRIMARY KEY,
+        date TEXT,
+        calories_burned INTEGER,
+        length_minutes INTEGER
+        );
+        """
+cursor.execute(create_table)
+conn.commit()
+conn.close() # Closes the connection to the database
 
 #----------------Endpoints----------------#
 @app.get("/")
 def root():
         return {"status": "ok"}
 
-#Return all workouts
-@app.get("/workouts/")
-def getWorkout():
-        return workoutdict
-
-#Return specific workout by UUID
-@app.get("/workouts/{id}")
-def getWorkout(id: str):
-        if id not in workoutdict:
-                raise HTTPException(status_code=404, detail="Workout log not found")
-        else:
-                return workoutdict[id]
-
-#Add a workout to the dictionary
+# POST & INSERT a workout into the logs table
 @app.post("/workouts/")
 def create_workout(workout_in: WorkoutCreate):
-        workout = add_uuid(workout_in) # Returns a workout object
-        add_workout_to_dict(workout)
-        return workout
+        conn = sqlite3.connect('workouts.db')
+        cursor = conn.cursor()
+        
+        workout = add_uuid(workout_in) # Assigns a UUID to the workout
+        cursor.execute(
+                 "INSERT INTO logs (id, date, calories_burned, length_minutes) VALUES (?, ?, ?, ?)",
+                 (workout.id, workout.date, workout.calories_burned, workout.length_minutes)
+                 )
+        
+        conn.commit()
+        conn.close()
+        return "Workout Logged!"
 
-#Delete all workout logs
+# GET all workouts in the logs table
+@app.get("/workouts/")
+def getWorkout():
+        conn = sqlite3.connect('workouts.db')
+        cursor = conn.cursor()  
+
+        cursor.execute("SELECT * FROM logs")
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+# GET workout log by UUID
+@app.get("/workouts/{id}")
+def getWorkout(id: str):
+        conn = sqlite3.connect('workouts.db')
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM logs WHERE id=?", (id,))
+        row = cursor.fetchone()
+        if row is None:
+                conn.close()
+                raise HTTPException(404, detail="Log ID not found", headers=None)
+        else:
+                conn.close()
+                return row
+
+# DELETE all workout logs from table
 @app.delete("/workouts/")
 def deleteWorkouts():
-        workoutdict.clear()
+        conn = sqlite3.connect('workouts.db')
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM logs;")
+        conn.commit()
+        conn.close()
         return "All workout logs have been cleared."
 
-#Delete specific workout logs based on UUID
+# DELETE specific workout logs based on UUID
 @app.delete("/workouts/{id}")
 def deleteWorkouts(id: str):
-        if id not in workoutdict:
-                raise HTTPException(status_code=404, detail="Workout log not found")
-        else:
-                del workoutdict[id]
-                return workoutdict
+        conn = sqlite3.connect('workouts.db')
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM logs WHERE id=?", (id,))
+        rows = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        return rows
+
+
 
 #Updates a workout log entry when provided a UUID
 @app.patch("/workouts/{id}")
@@ -83,7 +126,6 @@ def update_workout(id:str, workoutUpdate: WorkoutUpdate):
                 update_data = workoutUpdate.model_dump(exclude_unset=True) 
                 workoutdict[id] = workoutdict[id].model_copy(update=update_data)
                 return workoutdict[id]
-
 
 
 #---------------------------Functions-------------------------#
@@ -99,3 +141,5 @@ def add_uuid(workout_in: WorkoutCreate) -> Workout:
 #Adds the workout to a workout dictionary
 def add_workout_to_dict(workout_in:Workout):
         workoutdict.update({workout_in.id : workout_in})
+
+
