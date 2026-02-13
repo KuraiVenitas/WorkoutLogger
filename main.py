@@ -187,6 +187,8 @@ def update_workout_by_id(id:str, workoutUpdate: WorkoutUpdate):
                         values.append(id)
 
                         cursor.execute(f"UPDATE logs SET {set_clause} WHERE id=?", values)
+                        cursor.execute("SELECT * FROM logs WHERE id=?", (id,))
+                        row = cursor.fetchone()
                         conn.commit()
                         conn.close()
                         return [
