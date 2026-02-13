@@ -1,35 +1,32 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel #Import BaseModel to check types automatically, Reinforces required vs optional fields
-from datetime import date #Import the library for dates. Prevents invalid dates
+from pydantic import Field, BaseModel #Import BaseModel to check types automatically, Reinforces required vs optional fields
+from datetime import date as dt_date #Import the library for dates. Prevents invalid dates
 from typing import Optional #Allows for some fields to be missing
 import uuid, sqlite3
 
-
-#----------------Variables----------------#
 app = FastAPI()
-workoutdict = {} #Holds workout logs
 
 #----------------Classes----------------#
 #WorkoutCreate Class includes three fields: Date, Calories burned and Workout Length
 class WorkoutCreate(BaseModel):
-        date: date
+        date: dt_date = Field(default_factory = dt_date.today) # Note: Defaults the date to today's date if the client send no date in their request
         calories_burned: Optional[int] = None
         length_minutes: Optional[int] = None
 
 #Workout Class includes the addition of a UID
 class Workout(BaseModel):
         id: str
-        date: date
+        date: dt_date
         calories_burned: Optional[int] = None
         length_minutes: Optional[int] = None
 
 #WorkoutUpdate class to have the client update the workout log
 class WorkoutUpdate(BaseModel):
-        date: Optional[date] = None
+        date: Optional[dt_date] = None
         calories_burned: Optional[int] = None
         length_minutes: Optional[int] = None
 
-#---------------------------Database-------------------------#
+#---------------------------Database Setup-------------------------#
 conn = sqlite3.connect('workouts.db') # Creates workouts database
 cursor = conn.cursor()
 create_table = """
@@ -41,7 +38,7 @@ create_table = """
         );
         """
 cursor.execute(create_table)
-conn.commit()
+conn.commit() # Commits changes to the database
 conn.close() # Closes the connection to the database
 
 #----------------Endpoints----------------#
@@ -54,31 +51,46 @@ def root():
 def create_workout(workout_in: WorkoutCreate):
         conn = sqlite3.connect('workouts.db')
         cursor = conn.cursor()
+
+        workout = add_uuid(workout_in) # Assigns a UUID and date to the workout
+
+        # Workout values tuple. Info inserts in a structure-safe manner.
+        data =  workout.model_dump()
+        workout_values = (
+                data["id"],
+                data["date"],
+                data["calories_burned"],
+                data["length_minutes"]
+        ) 
         
-        workout = add_uuid(workout_in) # Assigns a UUID to the workout
-        cursor.execute(
-                 "INSERT INTO logs (id, date, calories_burned, length_minutes) VALUES (?, ?, ?, ?)",
-                 (workout.id, workout.date, workout.calories_burned, workout.length_minutes)
-                 )
+        cursor.execute("INSERT INTO logs (id, date, calories_burned, length_minutes) VALUES (?, ?, ?, ?)", workout_values)
         
         conn.commit()
         conn.close()
-        return "Workout Logged!"
+        return workout
 
 # GET all workouts in the logs table
 @app.get("/workouts/")
-def getWorkout():
+def get_all_workouts():
         conn = sqlite3.connect('workouts.db')
         cursor = conn.cursor()  
 
         cursor.execute("SELECT * FROM logs")
         rows = cursor.fetchall()
+
         conn.close()
-        return rows
+        return [
+                {               
+                        "id": row[0],
+                        "date": row[1],
+                        "calories_burned": row[2],
+                        "length_minutes": row[3],
+                } for row in rows
+        ]
 
 # GET workout log by UUID
 @app.get("/workouts/{id}")
-def getWorkout(id: str):
+def get_workout_by_id(id: str):
         conn = sqlite3.connect('workouts.db')
         cursor = conn.cursor()
 
@@ -89,43 +101,103 @@ def getWorkout(id: str):
                 raise HTTPException(404, detail="Log ID not found", headers=None)
         else:
                 conn.close()
-                return row
+                return {
+                        "id": row[0],
+                        "date": row[1],
+                        "calories_burned": row[2],
+                        "length_minutes": row[3],
+                }
 
 # DELETE all workout logs from table
 @app.delete("/workouts/")
-def deleteWorkouts():
+def delete_all_workouts():
         conn = sqlite3.connect('workouts.db')
         cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM logs")
+        rows = cursor.fetchall()
 
         cursor.execute("DELETE FROM logs;")
         conn.commit()
+        
         conn.close()
-        return "All workout logs have been cleared."
+        return [
+                {
+                        "message": f"The following logs have been deleted"
+                }
+                ],[
+                {               
+                        "id": row[0],
+                        "date": row[1],
+                        "calories_burned": row[2],
+                        "length_minutes": row[3],
+                } for row in rows
+        ]
 
 # DELETE specific workout logs based on UUID
 @app.delete("/workouts/{id}")
-def deleteWorkouts(id: str):
+def delete_workout_by_id(id: str):
         conn = sqlite3.connect('workouts.db')
         cursor = conn.cursor()
 
-        cursor.execute("DELETE FROM logs WHERE id=?", (id,))
-        rows = cursor.fetchall()
-        conn.commit()
-        conn.close()
-        return rows
+        cursor.execute("SELECT * FROM logs WHERE id=?", (id,))
+        row = cursor.fetchone()
 
+        if row is None:
+                conn.close()
+                raise HTTPException(404, detail="Log ID not found", headers=None)
+        else:
+                cursor.execute("DELETE FROM logs WHERE id=?", (id,))
+                conn.commit()
 
+                conn.close()
+                return [
+                                {
+                                        "message": f"Log {id} deleted"
+                                },
+                                {
+                                        "id": row[0],
+                                        "date": row[1],
+                                        "calories_burned": row[2],
+                                        "length_minutes": row[3],
+                                }
+                ]
+        
 
-#Updates a workout log entry when provided a UUID
+# Updates a workout log entry when provided a UUID
 @app.patch("/workouts/{id}")
-def update_workout(id:str, workoutUpdate: WorkoutUpdate):
-        if id not in workoutdict:
+def update_workout_by_id(id:str, workoutUpdate: WorkoutUpdate):
+        conn = sqlite3.connect("workouts.db")
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM logs WHERE id=?", (id,))
+        row = cursor.fetchone()
+
+        if row is None:
+                conn.close()
                 raise HTTPException(status_code=404, detail="Workout log not found")
         else:
-                #Converts the pydantic model to a python dict and disregards fields with no input
-                update_data = workoutUpdate.model_dump(exclude_unset=True) 
-                workoutdict[id] = workoutdict[id].model_copy(update=update_data)
-                return workoutdict[id]
+                updates = workoutUpdate.model_dump(exclude_unset=True)
+                if not updates:
+                        conn.close()
+                        return {"message": "No information provided."}
+                else:
+                        set_clause = ", ".join([f"{col}=?" for col in updates.keys()])
+                        values = list(updates.values())
+                        values.append(id)
+
+                        cursor.execute(f"UPDATE logs SET {set_clause} WHERE id=?", values)
+                        conn.commit()
+                        conn.close()
+                        return [
+                                {"message": f"Log {id} successfully updated!"},
+                                {
+                                        "id": row[0],
+                                        "date": row[1],
+                                        "calories_burned": row[2],
+                                        "length_minutes": row[3],
+                                }
+                        ]
 
 
 #---------------------------Functions-------------------------#
@@ -136,10 +208,4 @@ def add_uuid(workout_in: WorkoutCreate) -> Workout:
                 date = workout_in.date,
                 calories_burned = workout_in.calories_burned,
                 length_minutes = workout_in.length_minutes
-                )
-
-#Adds the workout to a workout dictionary
-def add_workout_to_dict(workout_in:Workout):
-        workoutdict.update({workout_in.id : workout_in})
-
-
+        )
