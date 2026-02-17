@@ -1,0 +1,30 @@
+Day 1 - Jan 27th 2026
+- Workshopped ideas for WorkoutLoggerAPI
+- Acquired tools necessary including Python, Postman, SQLite3(installed), Git, Visual Studio Code
+- Connected remote repo to local folder
+-- Struggles: Mostly basic understanding of all the tools needed for this project. While I've used them in previous projects, my confidence in using them now is very limited, which will change as I continue to work on it.
+
+Day 2 - Jan 28th 2026
+- Imported UUID library for UUID generation for each workout log
+- Created WorkoutCreate() and Workout() classes to define workout objects and their characteristics
+- Created GET Endpoints to return all or specific workouts(by ID)
+- Created POST endpoint to update dictionary with workout logs information
+- Created two functions, add_uuid(), which adds a UUID to the workout and add_workout_to_dict, which adds the workout to a dictionary
+-- Struggles: Nothing particularly noteworthy. I've gotten more comfortable in my understanding of the tools I've been using and how they integrate with each other.
+
+Day 3 - Jan 29th 2026
+- Created DELETE Endpoints to delete all or a specified workout log from the dictionary
+-- Struggles: Patch endpoint was more complicated than I expected. When attempting to use the update method for my python dictionary, I ran into a 500 server error. Essentially, I tried updating the Pydantic model with the client's input. This didn't work initially because I used update(), which only works dict-to-dict. Using model_dump to remove fields the client didn't use and convert input to dict was the first step. From there, model_copy() was used to copy the dict information into the pydantic model value in the workoutdict. Overall, the issue was lack of knowledge and know-how, which is now solved
+
+Day 4 - Feb 2nd 2026
+- Today I began work with SQLite3 databases, and I'm really enjoying revisiting this portion of knowledge. Though I was taught the basics in college, like with most things, I felt the pace prevented me from really understanding what I was doing at a fundamental level. 
+- The task today was to implement a SQLite3 DB in place of the workout dict I was using to nail down my project's basic functions. So far, I've modified endpoints for creating, reading, and deleting information in the logs. The next step will be to tackle updating, which may be more involved due to accounting for the specific type of information the client wishes to update via request.
+-- Main struggles for today were mainly understanding syntax for sql queries. Nothing I couldn't overcome with a little research.
+
+Day 5 - Feb 13th 2026
+- Bit of a refresher day to go through code again before implementing a system to update fields in the database.
+- Managed to get the patch endpoint hammered out and properly implemented with online assistance. 
+- Adjusted the date variable/field. Allowed the field to be optional for the client to initialize. By default, the date will default to the date of the running server.
+--The struggle today was implementing the patch endpoint, which mostly came from having limited knowledge. I was unsure how I could get the system to differentiate between what the client intended to update. This was accomplished by making a placeholder variable that contained the keys the client requested to update and a list that held the information the client wanted to update with each key. The id the client referenced was appended to the end of the list of values for reference in the SQL clause. 
+
+- By the end of Day 5, the API fully supports CRUD functionality with SQLite DB persisten
