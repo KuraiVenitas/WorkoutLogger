@@ -3,4 +3,4 @@ This is a RESTful API that allows clients/users to log and manage workout entrie
 
 Purpose:
 - This program will allow the user to create, view, update or remove workouts from their workout log.
-- The logs will include information regarding Workout Length, Calories Burned, and the Date the workout occured, with the date being required.
+- The logs will include information regarding Workout Length, Calories Burned, and the Date the workout occured. Whidle the Date isn't mandatory, it will default to the date of the system running the server.
